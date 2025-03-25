@@ -7,7 +7,7 @@ export async function uploadLocalFiletoCloudinary(file: File): Promise<string> {
 
   const uploadResult = await cloudinary.uploader.upload(dataURI, {
     folder: 'user_uploads'
-  })
+  });
 
   return uploadResult.secure_url;
 }
