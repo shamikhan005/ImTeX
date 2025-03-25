@@ -46,9 +46,14 @@ export async function convertMarkdownToLatex(
       enhancedMarkdown = enhanceMarkdownEquations(enhancedMarkdown);
     }
 
-    const latexContent = await convertWithPandoc(enhancedMarkdown);
-
-    return generateLatexDocument(latexContent, structureMetadata);
+    try {
+      const latexContent = await convertWithPandoc(enhancedMarkdown);
+      return generateLatexDocument(latexContent, structureMetadata);
+    } catch (pandocError) {
+      console.log('Pandoc conversion failed, falling back to Gemini AI:', pandocError);
+      const latexContent = await convertWithGemini(enhancedMarkdown, 'general');
+      return generateLatexDocument(latexContent, structureMetadata);
+    }
   } catch (error) {
     console.error('Error in LaTeX conversion:', error);
     return '\\documentclass{article}\\begin{document}Conversion failed\\end{document}';
@@ -216,7 +221,6 @@ function extractLatexFromResponse(response: string): string {
   return response.trim();
 }
 
-
 function enhanceResumeLatex(latex: string): string {
   let enhanced = cleanupResumeLatex(latex);
 
@@ -294,12 +298,17 @@ async function convertWithPandoc(markdown: string): Promise<string> {
       const command = `pandoc ${tempFilePath} -f markdown -t latex --standalone`;
 
       exec(command, async (error, stdout, stderr) => {
-        await unlink(tempFilePath).catch(console.error);
+        try {
+          await unlink(tempFilePath).catch(console.error);
+        } catch (unlinkError) {
+          console.warn('Failed to delete temp file:', unlinkError);
+        }
 
         if (error) {
           console.error('Pandoc conversion error:', error);
-          reject('Failed to convert Markdown to LaTeX');
+          return reject('Failed to convert Markdown to LaTeX');
         }
+        
         if (stderr) {
           console.warn('Pandoc stderr:', stderr);
         }
@@ -308,8 +317,8 @@ async function convertWithPandoc(markdown: string): Promise<string> {
       });
     });
   } catch (error) {
-    console.error('Error writing temp markdown file:', error);
-    throw error;
+    console.error('Error in Pandoc conversion process:', error);
+    throw new Error('Pandoc conversion failed');
   }
 }
 
