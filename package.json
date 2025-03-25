@@ -9,23 +9,25 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.0",
     "@mistralai/mistralai": "^1.5.2",
     "axios": "^1.8.4",
     "cloudinary": "^2.6.0",
     "hast-util-to-string": "^3.0.1",
     "multer": "^1.4.5-lts.1",
-    "next": "15.2.3",
+    "next": "^14.2.25",
     "next-cloudinary": "^6.16.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
     "@types/multer": "^1.4.12",
     "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "tailwindcss": "^4",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10.4.14",
+    "postcss": "^8.4.24",
+    "tailwindcss": "^3.3.2",
     "typescript": "^5"
   }
 }
