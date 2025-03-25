@@ -2,12 +2,16 @@
 
 ImTeX is a web application that converts images containing mathematical equations, tables, and other structured content into LaTeX code.
 
+![Screenshot 2025-03-25 143729](https://github.com/user-attachments/assets/3b281e83-c4f0-49d7-9add-f524b969afca) ![Screenshot 2025-03-25 143747](https://github.com/user-attachments/assets/f6ff0f20-aea7-4d66-b271-1845715946f9)
+
+
+
 ## features
 
 - **intelligent structure detection**: automatically detects equations, tables, lists, and other document structures
-- **document type optimization**: Specify document types (equations, tables, resumes, etc.) for improved conversion accuracy
-- **high-quality LaTeX output**: Generates well-formatted LaTeX code with appropriate packages
-- **detailed conversion insights**: Provides information about detected structures and conversion confidence
+- **document type optimization**: specify document types (equations, tables, resumes, etc.) for improved conversion accuracy
+- **high-quality LaTeX output**: generates well-formatted LaTeX code with appropriate packages
+- **detailed conversion insights**: provides information about detected structures and conversion confidence
 
 ## tech stack
 
@@ -15,7 +19,7 @@ ImTeX is a web application that converts images containing mathematical equation
 - **image processing**: cloudinary for image storage and management
 - **OCR**: mistral OCR 2503 for high-accuracy text and structure recognition
 - **AI**: google gemini API for advanced document structure analysis
-- **LaTeX conversion**: Custom processing pipeline with specialized handling for different document types and pandoc integration
+- **LaTeX conversion**: custom processing pipeline with specialized handling for different document types and pandoc integration
 
 ## getting started
 
