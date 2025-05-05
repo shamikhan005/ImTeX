@@ -20,52 +20,45 @@ interface ConversionResult {
 export default function ImageUploader() {
   const [preview, setPreview] = useState<string | null>(null);
   const [result, setResult] = useState<ConversionResult | null>(null);
-  const [status, setStatus] = useState<
-    "idle" | "loading" | "success" | "error"
-  >("idle");
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [documentType, setDocumentType] = useState<DocumentType>("auto");
   const [showDetails, setShowDetails] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleImageChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-        setPreview(URL.createObjectURL(file));
-        setResult(null);
-        setStatus("idle");
-        setError(null);
-      }
-    },
-    []
-  );
-
   const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
 
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      if (file.type.startsWith("image/")) {
-        setPreview(URL.createObjectURL(file));
-        if (fileInputRef.current) {
-          const dataTransfer = new DataTransfer();
-          dataTransfer.items.add(file);
-          fileInputRef.current.files = dataTransfer.files;
-        }
-        setResult(null);
-        setStatus("idle");
-        setError(null);
-      } else {
-        setError("Please upload an image file");
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith("image/")) {
+      if (fileInputRef.current) {
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        fileInputRef.current.files = dataTransfer.files;
       }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
+  }, []);
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   }, []);
 
   const handleSubmit = useCallback(async () => {
@@ -98,9 +91,9 @@ export default function ImageUploader() {
   }, [documentType]);
 
   const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 0.8) return "text-green-400";
-    if (confidence >= 0.6) return "text-amber-400";
-    return "text-red-400";
+    if (confidence >= 0.8) return "text-black";
+    if (confidence >= 0.6) return "text-black opacity-80";
+    return "text-black opacity-60";
   };
 
   const downloadLatex = () => {
@@ -118,78 +111,52 @@ export default function ImageUploader() {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="bg-gray-800 rounded-xl shadow-md border border-gray-700 overflow-hidden">
-        <div className="p-6">
-          <h3 className="text-lg font-medium text-gray-100 mb-4">
-            Upload Your Image
-          </h3>
-
-          <div
-            className={`border-2 border-dashed rounded-lg p-8 mb-6 text-center cursor-pointer transition-colors ${
-              preview
-                ? "border-white bg-gray-700"
-                : "border-gray-600 hover:border-white hover:bg-gray-700"
-            }`}
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {preview ? (
-              <div className="flex flex-col items-center">
-                <img
-                  src={preview}
-                  alt="preview"
-                  className="max-w-full max-h-[300px] object-contain mb-4 rounded-md shadow-sm"
-                />
-                <span className="text-sm text-gray-400">
-                  Click or drag to replace
-                </span>
+    <div className="bg-white text-black">
+      <div className="space-y-4">
+        <div
+          className={`relative border-2 border-dashed rounded-lg p-4 text-center ${
+            preview ? "border-black" : "border-gray-400 hover:border-black"
+          } transition-colors`}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+        >
+          {preview ? (
+            <div className="relative aspect-video">
+              <img
+                src={preview}
+                alt="Preview"
+                className="w-full h-full object-contain"
+              />
+            </div>
+          ) : (
+            <div className="py-12">
+              <div className="text-gray-600 mb-2">
+                Drag and drop an image here, or click to select
               </div>
-            ) : (
-              <div className="flex flex-col items-center">
-                <svg
-                  className="w-12 h-12 text-gray-500 mb-3"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                  />
-                </svg>
-                <p className="text-gray-300 font-medium mb-2">
-                  Drag and drop your image here
-                </p>
-                <p className="text-gray-500 text-sm">
-                  or click to browse files
-                </p>
+              <div className="text-sm text-gray-500">
+                Supported formats: PNG, JPEG, WebP
               </div>
-            )}
-            <input
-              type="file"
-              accept="image/*"
-              ref={fileInputRef}
-              onChange={handleImageChange}
-              className="hidden"
-            />
-          </div>
+            </div>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          />
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="md:col-span-3">
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-black mb-2">
                 Document Type:
               </label>
               <select
                 value={documentType}
-                onChange={(e) =>
-                  setDocumentType(e.target.value as DocumentType)
-                }
-                className="w-full rounded-md bg-gray-700 border border-gray-600 shadow-sm py-2 px-3 text-gray-200 focus:outline-none focus:ring-2 focus:ring-white focus:border-white transition-colors"
+                onChange={(e) => setDocumentType(e.target.value as DocumentType)}
+                className="w-full rounded-md bg-white border border-gray-300 shadow-sm py-2 px-3 text-black focus:outline-none focus:ring-2 focus:ring-black focus:border-black transition-colors"
               >
                 <option value="auto">Auto-detect</option>
                 <option value="equation">Mathematical Equations</option>
@@ -203,10 +170,10 @@ export default function ImageUploader() {
               <button
                 onClick={handleSubmit}
                 disabled={status === "loading" || !preview}
-                className={`w-full py-2 px-4 rounded-md font-medium text-white transition-colors ${
+                className={`w-full py-2 px-4 rounded-md font-medium transition-colors ${
                   status === "loading" || !preview
-                    ? "bg-gray-700 opacity-50 cursor-not-allowed"
-                    : "bg-gray-900 hover:bg-black border border-gray-600"
+                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    : "bg-black text-white hover:bg-gray-800 border border-black"
                 }`}
               >
                 {status === "loading" ? (
@@ -243,242 +210,107 @@ export default function ImageUploader() {
       </div>
 
       {error && (
-        <div className="p-4 bg-red-900/30 border-l-4 border-red-500 rounded-md">
-          <div className="flex items-start">
-            <div className="flex-shrink-0">
-              <svg
-                className="h-5 w-5 text-red-400"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-red-200">{error}</p>
-            </div>
-          </div>
+        <div className="mt-4 p-4 bg-gray-100 border border-black rounded-lg text-black">
+          {error}
         </div>
       )}
 
       {result && (
-        <div className="bg-gray-800 rounded-xl shadow-md border border-gray-700 overflow-hidden">
-          <div className="p-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-              <h3 className="text-lg font-medium text-gray-100">
-                LaTeX Output
+        <div className="mt-8 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <h3 className="text-lg font-medium text-black">
+                Conversion Result
               </h3>
-              <div className="flex flex-wrap items-center gap-4">
-                <div className="flex items-center gap-2 bg-gray-700 px-3 py-1 rounded-full">
-                  <span className="text-sm font-medium text-gray-300">
-                    Type:
-                  </span>
-                  <span className="text-sm capitalize text-gray-200">
-                    {result.documentType}
-                  </span>
+              <div className={`text-sm ${getConfidenceColor(result.confidence)}`}>
+                {(result.confidence * 100).toFixed(1)}% confidence
+              </div>
+            </div>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => setShowDetails(!showDetails)}
+                className="text-sm px-3 py-1 bg-white hover:bg-gray-100 text-black border border-gray-300 rounded-md transition-colors"
+              >
+                {showDetails ? "Hide Details" : "Show Details"}
+              </button>
+            </div>
+          </div>
+
+          {showDetails && (
+            <div className="p-4 bg-white rounded-lg border border-gray-300 text-sm text-black">
+              <div className="space-y-2">
+                <div>
+                  <span className="font-medium">Document Type: </span>
+                  {result.documentType}
                 </div>
-                <div className="flex items-center gap-2 bg-gray-700 px-3 py-1 rounded-full">
-                  <span className="text-sm font-medium text-gray-300">
-                    Confidence:
-                  </span>
-                  <span
-                    className={`text-sm ${getConfidenceColor(
-                      result.confidence
-                    )}`}
-                  >
-                    {Math.round(result.confidence * 100)}%
-                  </span>
+                <div>
+                  <span className="font-medium">Processing Time: </span>
+                  {new Date(
+                    result.processingDetails?.processingTime || ""
+                  ).toLocaleString()}
                 </div>
+                <div>
+                  <span className="font-medium">Structure Metadata: </span>
+                  <pre className="mt-1 p-2 bg-gray-50 rounded text-xs overflow-auto border border-gray-200">
+                    {JSON.stringify(result.structureMetadata, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-lg overflow-hidden border border-gray-300">
+            <div className="bg-gray-100 p-3 flex justify-between items-center">
+              <span className="font-medium text-black">LaTeX Code</span>
+              <div className="flex space-x-2">
                 <button
-                  onClick={() => setShowDetails(!showDetails)}
-                  className="text-sm px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white hover:text-gray-200 rounded-full transition-colors"
+                  onClick={downloadLatex}
+                  className="text-sm px-3 py-1 bg-white hover:bg-gray-50 text-black border border-gray-300 rounded-md transition-colors flex items-center"
                 >
-                  {showDetails ? "Hide Details" : "Show Details"}
+                  <svg
+                    className="w-4 h-4 mr-1"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                    />
+                  </svg>
+                  Download
+                </button>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(result.latexDocument);
+                  }}
+                  className="text-sm px-3 py-1 bg-white hover:bg-gray-50 text-black border border-gray-300 rounded-md transition-colors flex items-center"
+                >
+                  <svg
+                    className="w-4 h-4 mr-1"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
+                    />
+                  </svg>
+                  Copy
                 </button>
               </div>
             </div>
-
-            {showDetails && (
-              <div className="mb-6 p-4 bg-gray-700 rounded-lg border border-gray-600">
-                <h4 className="font-medium text-gray-200 mb-3">
-                  Document Structure
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <ul className="space-y-2">
-                      {result.structureMetadata.hasTables && (
-                        <li className="flex items-center text-sm text-gray-300">
-                          <svg
-                            className="w-4 h-4 mr-2 text-green-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
-                          Contains tables
-                        </li>
-                      )}
-                      {result.structureMetadata.hasEquations && (
-                        <li className="flex items-center text-sm text-gray-300">
-                          <svg
-                            className="w-4 h-4 mr-2 text-green-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
-                          Contains equations
-                        </li>
-                      )}
-                      {result.structureMetadata.hasLists && (
-                        <li className="flex items-center text-sm text-gray-300">
-                          <svg
-                            className="w-4 h-4 mr-2 text-green-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
-                          Contains lists
-                        </li>
-                      )}
-                      <li className="flex items-center text-sm text-gray-300">
-                        <svg
-                          className="w-4 h-4 mr-2 text-gray-400"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        </svg>
-                        Layout: {result.structureMetadata.layout || "simple"}
-                      </li>
-                    </ul>
-                  </div>
-                  {result.processingDetails && (
-                    <div>
-                      <h4 className="font-medium text-gray-200 mb-2">
-                        Processing Details
-                      </h4>
-                      <ul className="space-y-2">
-                        <li className="flex items-start text-sm text-gray-300">
-                          <span className="font-medium mr-2">
-                            Document Type Hint:
-                          </span>
-                          <span>
-                            {result.processingDetails.documentTypeHint}
-                          </span>
-                        </li>
-                        <li className="flex items-start text-sm text-gray-300">
-                          <span className="font-medium mr-2">
-                            Processing Time:
-                          </span>
-                          <span>
-                            {new Date(
-                              result.processingDetails.processingTime
-                            ).toLocaleString()}
-                          </span>
-                        </li>
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="rounded-lg overflow-hidden border border-gray-600">
-              <div className="bg-gray-700 p-3 flex justify-between items-center">
-                <span className="font-medium text-gray-200">LaTeX Code</span>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={downloadLatex}
-                    className="text-sm px-3 py-1 bg-gray-600 hover:bg-gray-500 text-gray-200 rounded-md transition-colors flex items-center"
-                  >
-                    <svg
-                      className="w-4 h-4 mr-1"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                      />
-                    </svg>
-                    Download
-                  </button>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(result.latexDocument);
-                      const notification = document.createElement("div");
-                      notification.className =
-                        "fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-md shadow-lg border border-gray-700";
-                      notification.textContent = "LaTeX copied to clipboard!";
-                      document.body.appendChild(notification);
-                      setTimeout(() => {
-                        notification.remove();
-                      }, 2000);
-                    }}
-                    className="text-sm px-3 py-1 bg-black hover:bg-gray-900 text-white rounded-md transition-colors flex items-center"
-                  >
-                    <svg
-                      className="w-4 h-4 mr-1"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
-                      />
-                    </svg>
-                    Copy
-                  </button>
-                </div>
-              </div>
-              <div className="relative">
-                <pre className="p-4 overflow-x-auto bg-gray-900 text-sm text-gray-300 max-h-[400px]">
-                  {result.latexDocument}
-                </pre>
-              </div>
+            <div className="p-4 bg-white">
+              <pre className="text-sm text-black whitespace-pre-wrap font-mono">
+                {result.latexDocument}
+              </pre>
             </div>
           </div>
         </div>
