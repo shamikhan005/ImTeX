@@ -25,15 +25,15 @@ export default function Home() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-custom">
             <div className="font-bold text-lg mb-2">1. Upload</div>
-            <p className="text-gray-600">Upload an image containing mathematical content</p>
+            <p className="text-gray-600">Upload an image</p>
           </div>
           <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-custom">
             <div className="font-bold text-lg mb-2">2. Process</div>
-            <p className="text-gray-600">Our AI analyzes and converts the content</p>
+            <p className="text-gray-600">Image → OCR (Mistral) → Markdown → LaTeX (Gemini/Pandoc)</p>
           </div>
           <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-custom">
             <div className="font-bold text-lg mb-2">3. Download</div>
-            <p className="text-gray-600">Get the LaTeX code.</p>
+            <p className="text-gray-600">Get the LaTeX code</p>
           </div>
         </div>
       </div>
