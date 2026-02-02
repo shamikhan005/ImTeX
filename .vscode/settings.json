@@ -1,5 +1,13 @@
 {
   "cSpell.words": [
-    "graphicx"
+    "ctex",
+    "documentclass",
+    "fontspec",
+    "graphicspath",
+    "graphicx",
+    "includegraphics",
+    "luatexja",
+    "textit",
+    "usepackage"
   ]
 }

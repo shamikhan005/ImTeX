@@ -1,8 +1,8 @@
-import { exec } from 'child_process';
-import { writeFile, unlink } from 'fs/promises';
-import { tmpdir } from 'os';
-import { join } from 'path';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { exec } from "child_process";
+import { writeFile, unlink } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface DocumentStructure {
   hasTables: boolean;
@@ -18,25 +18,82 @@ interface DocumentStructure {
 const geminiApiKey = process.env.GEMINI_API_KEY || "";
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 
+function removeImageReferences(latex: string): string {
+  latex = latex.replace(
+    /\\includegraphics\s*(?:\[[^\]]*\])?\s*\{[^}]*\}/g,
+    "\\textit{[Figure: See problem description]}"
+  );
+
+  latex = latex.replace(
+    /\\begin\{figure\}[\s\S]*?\\includegraphics[\s\S]*?\\end\{figure\}/g,
+    "\\textit{[Figure: See problem description]}"
+  );
+
+  latex = latex.replace(/\\usepackage\{ctex\}/g, "");
+  latex = latex.replace(/\\usepackage\{xeCJK\}/g, "");
+  latex = latex.replace(/\\usepackage\{fontspec\}/g, "");
+  latex = latex.replace(/\\usepackage\{luatexja-fontspec\}/g, "");
+
+  latex = latex.replace(/\\begin\{CJK\}\{[^}]*\}\{[^}]*\}/g, "");
+  latex = latex.replace(/\\end\{CJK\}/g, "");
+
+  latex = latex.replace(/\\graphicspath\s*\{[^}]*\}/g, "");
+
+  latex = latex.replace(
+    /\{[^}]*\.(jpg|jpeg|png|gif|bmp|svg|pdf)\}/gi,
+    "{image-placeholder}"
+  );
+
+  latex = latex.replace(/\\usepackage\{graphicx\}/g, "");
+
+  return latex;
+}
+
+function enhanceChineseTextHandling(markdown: string): string {
+  const hasChinese = /[\u4e00-\u9fff]/.test(markdown);
+
+  if (hasChinese) {
+    const chineseHint =
+      "\n\n[CHINESE_TEXT_PRESENT: This content contains Chinese characters that must be properly formatted in LaTeX]\n\n";
+    return chineseHint + markdown;
+  }
+
+  return markdown;
+}
+
 export async function convertMarkdownToLatex(
   markdown: string,
-  structureMetadata: DocumentStructure = { hasTables: false, hasEquations: false, hasLists: false }
+  structureMetadata: DocumentStructure = {
+    hasTables: false,
+    hasEquations: false,
+    hasLists: false,
+  }
 ): Promise<string> {
   try {
-    if (structureMetadata.documentType === 'resume') {
-      const latexContent = await convertWithGemini(markdown, 'resume');
-      return enhanceResumeLatex(latexContent);
+    let enhancedMarkdown = enhanceChineseTextHandling(markdown);
+
+    if (structureMetadata.documentType === "resume") {
+      const latexContent = await convertWithGemini(enhancedMarkdown, "resume");
+      const enhancedLatex = enhanceResumeLatex(latexContent);
+      return removeImageReferences(enhancedLatex);
     }
 
     if (structureMetadata.hasEquations) {
-      return await convertWithGemini(markdown, 'equation');
+      const latexContent = await convertWithGemini(
+        enhancedMarkdown,
+        "equation"
+      );
+      const cleanedLatex = removeImageReferences(latexContent);
+      const finalLatex = generateLatexDocument(cleanedLatex, structureMetadata);
+      return finalLatex;
     }
 
     if (structureMetadata.hasTables) {
-      return await convertWithGemini(markdown, 'table');
+      const latexContent = await convertWithGemini(enhancedMarkdown, "table");
+      const cleanedLatex = removeImageReferences(latexContent);
+      const finalLatex = generateLatexDocument(cleanedLatex, structureMetadata);
+      return finalLatex;
     }
-
-    let enhancedMarkdown = markdown;
 
     if (structureMetadata.hasTables) {
       enhancedMarkdown = enhanceMarkdownTables(enhancedMarkdown);
@@ -48,19 +105,29 @@ export async function convertMarkdownToLatex(
 
     try {
       const latexContent = await convertWithPandoc(enhancedMarkdown);
-      return generateLatexDocument(latexContent, structureMetadata);
+      const cleanedLatex = removeImageReferences(latexContent);
+      const finalLatex = generateLatexDocument(cleanedLatex, structureMetadata);
+      return finalLatex;
     } catch (pandocError) {
-      console.log('Pandoc conversion failed, falling back to Gemini AI:', pandocError);
-      const latexContent = await convertWithGemini(enhancedMarkdown, 'general');
-      return generateLatexDocument(latexContent, structureMetadata);
+      console.log(
+        "Pandoc conversion failed, falling back to Gemini AI:",
+        pandocError
+      );
+      const latexContent = await convertWithGemini(enhancedMarkdown, "general");
+      const cleanedLatex = removeImageReferences(latexContent);
+      const finalLatex = generateLatexDocument(cleanedLatex, structureMetadata);
+      return finalLatex;
     }
   } catch (error) {
-    console.error('Error in LaTeX conversion:', error);
-    return '\\documentclass{article}\\begin{document}Conversion failed\\end{document}';
+    console.error("Error in LaTeX conversion:", error);
+    return "\\documentclass{article}\\begin{document}Conversion failed\\end{document}";
   }
 }
 
-async function convertWithGemini(markdown: string, documentType: string): Promise<string> {
+async function convertWithGemini(
+  markdown: string,
+  documentType: string
+): Promise<string> {
   try {
     console.log(`Converting ${documentType} with Gemini AI...`);
 
@@ -83,11 +150,19 @@ async function convertWithGemini(markdown: string, documentType: string): Promis
         history: [
           {
             role: "user",
-            parts: [{ text: "You are a LaTeX expert. You will be converting markdown to LaTeX with perfect formatting and structure." }],
+            parts: [
+              {
+                text: "You are a LaTeX expert. You will be converting markdown to LaTeX with perfect formatting and structure.",
+              },
+            ],
           },
           {
             role: "model",
-            parts: [{ text: "I'll convert markdown to LaTeX with precise formatting, following best practices for document structure, mathematical notation, tables, and typography. I'll ensure the output is clean, compilable, and professionally formatted." }],
+            parts: [
+              {
+                text: "I'll convert markdown to LaTeX with precise formatting, following best practices for document structure, mathematical notation, tables, and typography. I'll ensure the output is clean, compilable, and professionally formatted.",
+              },
+            ],
           },
         ],
       });
@@ -97,10 +172,13 @@ async function convertWithGemini(markdown: string, documentType: string): Promis
 
       const latexContent = extractLatexFromResponse(responseText);
 
-      console.log('Gemini 2.0 Flash conversion successful');
+      console.log("Gemini 2.0 Flash conversion successful");
       return latexContent;
     } catch (primaryError) {
-      console.warn('Primary model failed, trying fallback model:', primaryError);
+      console.warn(
+        "Primary model failed, trying fallback model:",
+        primaryError
+      );
 
       const fallbackModel = genAI.getGenerativeModel({
         model: "gemini-1.5-pro",
@@ -111,21 +189,40 @@ async function convertWithGemini(markdown: string, documentType: string): Promis
       const fallbackResponse = await fallbackResult.response;
       const fallbackResponseText = fallbackResponse.text();
 
-      const fallbackLatexContent = extractLatexFromResponse(fallbackResponseText);
+      const fallbackLatexContent =
+        extractLatexFromResponse(fallbackResponseText);
 
-      console.log('Fallback model conversion successful');
+      console.log("Fallback model conversion successful");
       return fallbackLatexContent;
     }
   } catch (error) {
-    console.error('Error in Gemini AI conversion:', error);
-    throw new Error('Failed to convert with Gemini AI');
+    console.error("Error in Gemini AI conversion:", error);
+    throw new Error("Failed to convert with Gemini AI");
   }
 }
 
 function createGeminiPrompt(markdown: string, documentType: string): string {
-  let prompt = '';
+  let prompt = "";
 
-  if (documentType === 'resume') {
+  const commonInstructions = `
+  CRITICAL OUTPUT FORMAT:
+  - DO NOT include \\documentclass, \\usepackage commands, or \\begin{document}/\\end{document}
+  - Return ONLY the document content (text and equations)
+  - The document structure will be handled automatically
+  - DO NOT add English translations or explanations if the original is in Chinese
+  - Keep the language exactly as it appears in the original image
+  
+  CRITICAL DOCUMENT STRUCTURE:
+  - DO NOT use \\includegraphics or any image references in the LaTeX output
+  - Replace any figure references with simple text placeholders like [Figure: See problem description]
+  - For Chinese text, ensure proper encoding and formatting
+  - Never reference external image files as they won't be available when compiling
+  
+  DOCUMENT ORDER:
+  1. Problem statement and text content
+  2. Mathematical equations and expressions`;
+
+  if (documentType === "resume") {
     prompt = `
     I need you to convert the following resume markdown to professional LaTeX code.
     
@@ -141,13 +238,15 @@ function createGeminiPrompt(markdown: string, documentType: string): string {
     9. Use appropriate spacing between sections
     10. Ensure consistent alignment throughout the document
     
+    ${commonInstructions}
+    
     IMPORTANT: Return ONLY the complete LaTeX code without any explanation or markdown formatting.
     
     Here's the markdown content to convert:
     
     ${markdown}
     `;
-  } else if (documentType === 'equation') {
+  } else if (documentType === "equation") {
     prompt = `
     I need you to convert the following markdown with mathematical equations to LaTeX code.
     
@@ -158,14 +257,29 @@ function createGeminiPrompt(markdown: string, documentType: string): string {
     4. Use the appropriate environment for each equation type (inline, display, aligned, etc.)
     5. Ensure proper spacing around operators
     6. Use proper mathematical notation and symbols
+    7. Handle Chinese text properly with correct LaTeX encoding
     
-    IMPORTANT: Return ONLY the complete LaTeX code without any explanation or markdown formatting.
+    CHINESE TEXT HANDLING:
+    - Preserve all Chinese characters exactly as they appear - DO NOT translate to English
+    - NEVER add English translations or explanations that weren't in the original
+    - This document will be compiled with standard LaTeX and CJK support
+    - DO NOT include \\documentclass, \\usepackage commands, or \\begin{document}/\\end{document}
+    - DO NOT include \\begin{CJK} or \\end{CJK} environments - these will be added automatically
+    - Chinese text will be handled automatically by the CJK package
+    - Use proper LaTeX formatting for Chinese text
+    - Maintain mathematical expressions within Chinese text correctly
+    - Return ONLY the document content (text and equations) without preamble
+    - If the original is purely in Chinese, keep it purely in Chinese - no English additions
+    
+    ${commonInstructions}
+    
+    IMPORTANT: Return ONLY the document content without \\documentclass, packages, or document environment. No explanations or markdown formatting.
     
     Here's the markdown content to convert:
     
     ${markdown}
     `;
-  } else if (documentType === 'table') {
+  } else if (documentType === "table") {
     prompt = `
     I need you to convert the following markdown with tables to LaTeX code.
     
@@ -178,7 +292,9 @@ function createGeminiPrompt(markdown: string, documentType: string): string {
     6. Ensure consistent formatting across all tables
     7. Add captions if appropriate
     
-    IMPORTANT: Return ONLY the complete LaTeX code without any explanation or markdown formatting.
+    ${commonInstructions}
+    
+    IMPORTANT: Return ONLY the document content without \\documentclass, packages, or document environment. No explanations or markdown formatting.
     
     Here's the markdown content to convert:
     
@@ -194,8 +310,11 @@ function createGeminiPrompt(markdown: string, documentType: string): string {
     3. Format headings, lists, and paragraphs appropriately
     4. Include necessary packages
     5. Maintain proper spacing and indentation
+    6. For mathematical content, use proper math environments
     
-    IMPORTANT: Return ONLY the complete LaTeX code without any explanation or markdown formatting.
+    ${commonInstructions}
+    
+    IMPORTANT: Return ONLY the document content without \\documentclass, packages, or document environment. No explanations or markdown formatting.
     
     Here's the markdown content to convert:
     
@@ -214,7 +333,7 @@ function extractLatexFromResponse(response: string): string {
     return codeBlockMatch[1].trim();
   }
 
-  if (response.trim().startsWith('\\documentclass')) {
+  if (response.trim().startsWith("\\documentclass")) {
     return response.trim();
   }
 
@@ -224,10 +343,12 @@ function extractLatexFromResponse(response: string): string {
 function enhanceResumeLatex(latex: string): string {
   let enhanced = cleanupResumeLatex(latex);
 
-  if (!enhanced.includes('\\begin{document}')) {
+  if (!enhanced.includes("\\begin{document}")) {
     enhanced = applyResumeTemplate(enhanced);
   } else {
-    const contentMatch = enhanced.match(/\\begin\{document\}([\s\S]*)\\end\{document\}/);
+    const contentMatch = enhanced.match(
+      /\\begin\{document\}([\s\S]*)\\end\{document\}/
+    );
     if (contentMatch && contentMatch[1]) {
       enhanced = applyResumeTemplate(contentMatch[1]);
     }
@@ -266,24 +387,43 @@ ${content}
 function cleanupResumeLatex(latex: string): string {
   let cleaned = latex;
 
-  cleaned = cleaned.replace(/^[\s\S]*?(\\documentclass|\\section|\\begin\{center\})/m, '$1');
+  cleaned = cleaned.replace(
+    /^[\s\S]*?(\\documentclass|\\section|\\begin\{center\})/m,
+    "$1"
+  );
 
   const unwantedCommands = [
-    'unicodehypercref', 'hyphenurl', 'article', 'xcolor', 'amsmath',
-    'amssymb', 'iftex', 'T1', 'fontenc', 'utf8', 'inputenc', 'textcomp',
-    'lmodern', 'npquote', 'microtype', 'protrusion', 'basicmath',
-    'parskip', 'bookmark', 'xurl'
+    "unicodehypercref",
+    "hyphenurl",
+    "article",
+    "xcolor",
+    "amsmath",
+    "amssymb",
+    "iftex",
+    "T1",
+    "fontenc",
+    "utf8",
+    "inputenc",
+    "textcomp",
+    "lmodern",
+    "npquote",
+    "microtype",
+    "protrusion",
+    "basicmath",
+    "parskip",
+    "bookmark",
+    "xurl",
   ];
 
   for (const cmd of unwantedCommands) {
-    cleaned = cleaned.replace(new RegExp(`\\\\${cmd}[^\n]*`, 'g'), '');
+    cleaned = cleaned.replace(new RegExp(`\\\\${cmd}[^\n]*`, "g"), "");
   }
 
   cleaned = cleaned
-    .replace(/C\+\+/g, 'C{\\texttt{++}}')
-    .replace(/\\begin\{itemize\}\s*\\item/g, '\\begin{itemize}\n  \\item')
-    .replace(/\\item\s*\\end\{itemize\}/g, '\\item\n\\end{itemize}')
-    .replace(/\\section\{([^}]+)\}\s*/g, '\\section{$1}\n');
+    .replace(/C\+\+/g, "C{\\texttt{++}}")
+    .replace(/\\begin\{itemize\}\s*\\item/g, "\\begin{itemize}\n  \\item")
+    .replace(/\\item\s*\\end\{itemize\}/g, "\\item\n\\end{itemize}")
+    .replace(/\\section\{([^}]+)\}\s*/g, "\\section{$1}\n");
 
   return cleaned;
 }
@@ -301,29 +441,29 @@ async function convertWithPandoc(markdown: string): Promise<string> {
         try {
           await unlink(tempFilePath).catch(console.error);
         } catch (unlinkError) {
-          console.warn('Failed to delete temp file:', unlinkError);
+          console.warn("Failed to delete temp file:", unlinkError);
         }
 
         if (error) {
-          console.error('Pandoc conversion error:', error);
-          return reject('Failed to convert Markdown to LaTeX');
+          console.error("Pandoc conversion error:", error);
+          return reject("Failed to convert Markdown to LaTeX");
         }
-        
+
         if (stderr) {
-          console.warn('Pandoc stderr:', stderr);
+          console.warn("Pandoc stderr:", stderr);
         }
 
         resolve(stdout);
       });
     });
   } catch (error) {
-    console.error('Error in Pandoc conversion process:', error);
-    throw new Error('Pandoc conversion failed');
+    console.error("Error in Pandoc conversion process:", error);
+    throw new Error("Pandoc conversion failed");
   }
 }
 
 function enhanceMarkdownTables(markdown: string): string {
-  const lines = markdown.split('\n');
+  const lines = markdown.split("\n");
   let inTable = false;
   let tableStart = -1;
   const tables = [];
@@ -331,12 +471,10 @@ function enhanceMarkdownTables(markdown: string): string {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    if (!inTable && line.trim().startsWith('|') && line.trim().endsWith('|')) {
+    if (!inTable && line.trim().startsWith("|") && line.trim().endsWith("|")) {
       inTable = true;
       tableStart = i;
-    }
-
-    else if (inTable && (!line.trim() || !line.includes('|'))) {
+    } else if (inTable && (!line.trim() || !line.includes("|"))) {
       inTable = false;
       tables.push({ start: tableStart, end: i - 1 });
     }
@@ -347,13 +485,15 @@ function enhanceMarkdownTables(markdown: string): string {
   }
 
   for (const table of tables) {
-    const hasHeaderSeparator = lines[table.start + 1]?.includes('---') || lines[table.start + 1]?.includes('===');
+    const hasHeaderSeparator =
+      lines[table.start + 1]?.includes("---") ||
+      lines[table.start + 1]?.includes("===");
 
     if (!hasHeaderSeparator && table.end > table.start) {
       const firstRow = lines[table.start];
       const columnCount = (firstRow.match(/\|/g) || []).length - 1;
 
-      const headerSeparator = '|' + ' --- |'.repeat(columnCount);
+      const headerSeparator = "|" + " --- |".repeat(columnCount);
 
       lines.splice(table.start + 1, 0, headerSeparator);
 
@@ -365,44 +505,72 @@ function enhanceMarkdownTables(markdown: string): string {
     }
   }
 
-  return lines.join('\n');
+  return lines.join("\n");
 }
 
 function enhanceMarkdownEquations(markdown: string): string {
-  let enhanced = markdown.replace(/\$([^\$\n]+)\$/g, '$$$1$$');
-  enhanced = enhanced.replace(/\$\$([^\$]+)\$\$/g, '\n\n$$\n$1\n$$\n\n');
+  let enhanced = markdown.replace(/\$([^\$\n]+)\$/g, "$$$1$$");
+  enhanced = enhanced.replace(/\$\$([^\$]+)\$\$/g, "\n\n$$\n$1\n$$\n\n");
 
   return enhanced;
 }
 
-function generateLatexDocument(latexContent: string, structureMetadata: DocumentStructure): string {
-  const contentMatch = latexContent.match(/\\begin\{document\}([\s\S]*)\\end\{document\}/);
-  const content = contentMatch ? contentMatch[1] : latexContent;
+function generateLatexDocument(
+  latexContent: string,
+  structureMetadata: DocumentStructure
+): string {
+  let content = latexContent;
 
-  let documentClass = '\\documentclass{article}';
+  content = content.replace(/\\documentclass[^}]*\{[^}]*\}/g, "");
+  content = content.replace(/\\usepackage[^}]*\{[^}]*\}/g, "");
+  content = content.replace(/\\geometry[^}]*\{[^}]*\}/g, "");
+
+  const documentMatch = content.match(
+    /\\begin\{document\}([\s\S]*)\\end\{document\}/
+  );
+  if (documentMatch && documentMatch[1]) {
+    content = documentMatch[1];
+  }
+
+  content = content.replace(/\\begin\{CJK\}[^}]*\{[^}]*\}/g, "");
+  content = content.replace(/\\end\{CJK\}/g, "");
+
+  content = content.trim();
+
+  let documentClass = "\\documentclass{article}";
 
   let preamble = `${documentClass}\n`;
-  preamble += '\\usepackage[utf8]{inputenc}\n';
-  preamble += '\\usepackage{amsmath}\n';
-  preamble += '\\usepackage{amssymb}\n';
-  preamble += '\\usepackage{graphicx}\n';
+  preamble += "\\usepackage[utf8]{inputenc}\n";
+  preamble += "\\usepackage{CJKutf8}\n";
+  preamble += "\\usepackage{amsmath}\n";
+  preamble += "\\usepackage{amsfonts}\n";
+  preamble += "\\usepackage{amssymb}\n";
+  preamble += "\\usepackage{geometry}\n";
+  preamble += "\\geometry{margin=1in}\n";
 
   if (structureMetadata.hasTables) {
-    preamble += '\\usepackage{booktabs}\n';
-    preamble += '\\usepackage{tabularx}\n';
-    preamble += '\\usepackage{longtable}\n';
+    preamble += "\\usepackage{booktabs}\n";
+    preamble += "\\usepackage{tabularx}\n";
+    preamble += "\\usepackage{longtable}\n";
   }
 
   if (structureMetadata.hasLists) {
-    preamble += '\\usepackage{enumitem}\n';
+    preamble += "\\usepackage{enumitem}\n";
   }
 
-  if (structureMetadata.layout === 'complex' || structureMetadata.layout === 'multi-column') {
-    preamble += '\\usepackage{multicol}\n';
+  if (
+    structureMetadata.layout === "complex" ||
+    structureMetadata.layout === "multi-column"
+  ) {
+    preamble += "\\usepackage{multicol}\n";
   }
 
   return `${preamble}
 \\begin{document}
+\\begin{CJK}{UTF8}{gbsn}
+
 ${content}
+
+\\end{CJK}
 \\end{document}`;
 }
