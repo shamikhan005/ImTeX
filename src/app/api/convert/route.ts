@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { uploadLocalFiletoCloudinary } from "@/app/lib/cloudinary/uploadImage";
 import { processMistralOCR } from "@/app/lib/mistral/client";
 
+export const maxDuration = 60;
+
 const requiredEnvVars = [
   'CLOUDINARY_CLOUD_NAME',
   'CLOUDINARY_API_KEY',

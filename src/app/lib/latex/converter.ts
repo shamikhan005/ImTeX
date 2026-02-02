@@ -61,6 +61,8 @@ function enhanceChineseTextHandling(markdown: string): string {
   return markdown;
 }
 
+const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY);
+
 export async function convertMarkdownToLatex(
   markdown: string,
   structureMetadata: DocumentStructure = {
@@ -101,6 +103,13 @@ export async function convertMarkdownToLatex(
 
     if (structureMetadata.hasEquations) {
       enhancedMarkdown = enhanceMarkdownEquations(enhancedMarkdown);
+    }
+
+    if (isServerless) {
+      const latexContent = await convertWithGemini(enhancedMarkdown, "general");
+      const cleanedLatex = removeImageReferences(latexContent);
+      const finalLatex = generateLatexDocument(cleanedLatex, structureMetadata);
+      return finalLatex;
     }
 
     try {
